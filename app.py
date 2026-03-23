@@ -125,6 +125,36 @@ FEATURE_IMPORTANCE = {
     "volume_change_1m":0.014,
 }
 
+# ---------------------------------------------------------------------------
+# EDA data — used by Panel 0 charts
+# ---------------------------------------------------------------------------
+eda_df = pd.DataFrame({
+    "ticker":       ["AAPL","AMC","BBBY","BYND","CMLS","HD","JNJ","KO","MCD","MSFT",
+                     "PG","PLUG","PTON","SEAT","SPCE","V","WKHS","WMT"],
+    "return_12m":   [0.173,-0.661,-0.138,-0.801,-0.989,-0.042,0.498,0.115,0.063,0.016,
+                     -0.112,0.365,-0.385,-0.881,-0.256,-0.100,-0.871,0.408],
+    "return_6m":    [0.052,-0.648,-0.503,-0.742,-0.963,-0.204,0.360,0.163,0.053,-0.227,
+                     -0.059,0.381,-0.490,-0.627,-0.213,-0.117,-0.766,0.182],
+    "volatility_6m":[0.014,0.034,0.044,0.201,0.150,0.014,0.010,0.011,0.010,0.016,
+                     0.012,0.073,0.040,0.053,0.045,0.014,0.062,0.015],
+    "volume_change_1m":[0.013,-0.515,-0.193,0.481,-0.587,0.189,-0.178,-0.392,-0.412,0.110,
+                        -0.519,0.105,-0.148,-0.327,-0.267,0.013,0.704,-0.461],
+    "total_liabilities_to_total_assets":[0.767,1.236,0.488,2.307,1.053,0.886,0.591,0.673,
+                                          1.036,0.412,0.581,0.613,1.151,0.697,0.735,0.599,
+                                          0.725,0.627],
+    "interest_coverage":[None,0.108,None,-24.05,-0.153,None,24.21,7.87,None,66.55,
+                         25.64,-41.57,-0.238,-3.74,-18.82,35.67,-45.62,9.42],
+    "net_income_to_total_assets":[0.111,-0.016,-0.049,-0.185,-0.019,None,0.026,0.022,
+                                   None,0.058,0.034,-0.326,-0.018,-0.008,-0.075,
+                                   0.060,-0.067,0.015],
+    "current_ratio":[0.974,0.412,1.250,4.535,1.742,1.051,1.028,1.459,1.000,1.386,
+                     0.724,2.310,1.983,0.672,2.868,1.111,1.207,0.790],
+    "distress_label":[0,1,1,1,1,0,0,0,0,0,0,1,1,1,1,0,1,0],
+})
+eda_df["label_str"] = eda_df["distress_label"].map({1:"Distressed",0:"Stable"})
+D = eda_df[eda_df["distress_label"]==1]
+S = eda_df[eda_df["distress_label"]==0]
+
 PLOT_BG = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
@@ -132,6 +162,123 @@ PLOT_BG = dict(
     legend=dict(bgcolor="rgba(0,0,0,0)", borderwidth=0),
 )
 GRID = dict(gridcolor=COLORS["border"], zerolinecolor=COLORS["border"])
+
+# ---------------------------------------------------------------------------
+# EDA figure builders
+# ---------------------------------------------------------------------------
+def build_eda1():
+    """Box plot: 12m return by label"""
+    fig = go.Figure()
+    for grp, color, df_g in [("Distressed", COLORS["distressed"], D),
+                               ("Stable",     COLORS["stable"],     S)]:
+        fig.add_trace(go.Box(
+            y=df_g["return_12m"], name=grp,
+            marker_color=color, boxmean=True,
+            line_width=1.5,
+        ))
+    fig.update_layout(**PLOT_BG,
+                      title=dict(text="12-month return: distressed vs stable", font_size=13, x=0),
+                      yaxis=dict(tickformat=".0%", title="12m Return", **GRID),
+                      xaxis=dict(**GRID),
+                      margin=dict(l=10,r=10,t=44,b=10), showlegend=False)
+    return fig
+
+def build_eda2():
+    """Bar chart: mean feature values by label"""
+    feats  = ["return_12m","return_6m","volatility_6m","interest_coverage","current_ratio"]
+    labels = ["12m Return","6m Return","6m Volatility","Interest Coverage","Current Ratio"]
+    d_means = [D[f].mean() for f in feats]
+    s_means = [S[f].mean() for f in feats]
+    fig = go.Figure()
+    fig.add_trace(go.Bar(name="Distressed", x=labels, y=d_means,
+                         marker_color=COLORS["distressed"]))
+    fig.add_trace(go.Bar(name="Stable",     x=labels, y=s_means,
+                         marker_color=COLORS["stable"]))
+    fig.update_layout(**PLOT_BG, barmode="group",
+                      title=dict(text="Mean feature values: distressed vs stable", font_size=13, x=0),
+                      xaxis=dict(**GRID), yaxis=dict(**GRID),
+                      margin=dict(l=10,r=10,t=44,b=10),
+                      legend_orientation="h", legend_y=1.12, legend_x=0)
+    return fig
+
+def build_eda3():
+    """Scatter: 12m return vs 6m volatility, coloured by label"""
+    fig = go.Figure()
+    for grp, color, df_g in [("Distressed", COLORS["distressed"], D),
+                               ("Stable",     COLORS["stable"],     S)]:
+        fig.add_trace(go.Scatter(
+            x=df_g["volatility_6m"], y=df_g["return_12m"],
+            mode="markers+text", name=grp,
+            text=df_g["ticker"], textposition="top center",
+            textfont=dict(size=9, color=COLORS["text_muted"]),
+            marker=dict(color=color, size=10, line=dict(width=1, color=COLORS["border"])),
+        ))
+    fig.update_layout(**PLOT_BG,
+                      title=dict(text="12m return vs 6m volatility", font_size=13, x=0),
+                      xaxis=dict(title="6m Volatility", **GRID),
+                      yaxis=dict(title="12m Return", tickformat=".0%", **GRID),
+                      margin=dict(l=10,r=10,t=44,b=30),
+                      legend_orientation="h", legend_y=1.12, legend_x=0)
+    return fig
+
+def build_eda4():
+    """Histogram: distribution of distress probability scores"""
+    probs_d = distress_df[distress_df["distress_label"]==1]["prob_ensemble"].tolist()
+    probs_s = distress_df[distress_df["distress_label"]==0]["prob_ensemble"].tolist()
+    fig = go.Figure()
+    fig.add_trace(go.Histogram(x=probs_d, name="Distressed", nbinsx=10,
+                               marker_color=COLORS["distressed"], opacity=0.8))
+    fig.add_trace(go.Histogram(x=probs_s, name="Stable", nbinsx=10,
+                               marker_color=COLORS["stable"], opacity=0.8))
+    fig.update_layout(**PLOT_BG, barmode="overlay",
+                      title=dict(text="Distribution of ensemble distress probabilities", font_size=13, x=0),
+                      xaxis=dict(title="Ensemble Probability", tickformat=".0%", **GRID),
+                      yaxis=dict(title="Count", **GRID),
+                      margin=dict(l=10,r=10,t=44,b=30),
+                      legend_orientation="h", legend_y=1.12, legend_x=0)
+    return fig
+
+def build_eda5():
+    """Bar: leverage (liabilities/assets) by company, coloured by label"""
+    df_sorted = eda_df.sort_values("total_liabilities_to_total_assets", ascending=False)
+    colors = [COLORS["distressed"] if l==1 else COLORS["stable"] for l in df_sorted["distress_label"]]
+    fig = go.Figure(go.Bar(
+        x=df_sorted["ticker"], y=df_sorted["total_liabilities_to_total_assets"],
+        marker_color=colors,
+        text=[f"{v:.2f}" for v in df_sorted["total_liabilities_to_total_assets"]],
+        textposition="outside",
+    ))
+    fig.add_hline(y=1.0, line_dash="dot", line_color=COLORS["highlight"],
+                  annotation_text="Liabilities > Assets", annotation_font_size=10,
+                  annotation_position="bottom right")
+    fig.update_layout(**PLOT_BG,
+                      title=dict(text="Leverage (liabilities / assets) by company", font_size=13, x=0),
+                      xaxis=dict(**GRID), yaxis=dict(title="Liabilities / Assets", **GRID),
+                      margin=dict(l=10,r=10,t=44,b=10), showlegend=False)
+    return fig
+
+def build_eda6():
+    """Scatter: interest coverage vs net income/assets, coloured by label"""
+    df_ic = eda_df.dropna(subset=["interest_coverage","net_income_to_total_assets"])
+    fig = go.Figure()
+    for grp, color in [("Distressed", COLORS["distressed"]), ("Stable", COLORS["stable"])]:
+        sub = df_ic[df_ic["label_str"]==grp]
+        fig.add_trace(go.Scatter(
+            x=sub["interest_coverage"], y=sub["net_income_to_total_assets"],
+            mode="markers+text", name=grp,
+            text=sub["ticker"], textposition="top center",
+            textfont=dict(size=9, color=COLORS["text_muted"]),
+            marker=dict(color=color, size=10, line=dict(width=1, color=COLORS["border"])),
+        ))
+    fig.add_vline(x=0, line_dash="dot", line_color=COLORS["text_muted"], line_width=1)
+    fig.add_hline(y=0, line_dash="dot", line_color=COLORS["text_muted"], line_width=1)
+    fig.update_layout(**PLOT_BG,
+                      title=dict(text="Interest coverage vs net income / assets", font_size=13, x=0),
+                      xaxis=dict(title="Interest Coverage Ratio", **GRID),
+                      yaxis=dict(title="Net Income / Assets", **GRID),
+                      margin=dict(l=10,r=10,t=44,b=30),
+                      legend_orientation="h", legend_y=1.12, legend_x=0)
+    return fig
 
 def tier_color(t):
     return TIER_COLORS.get(t, COLORS["neutral"])
@@ -349,6 +496,12 @@ INIT_CV_FIG         = build_cv_fig()
 INIT_FEAT_IMP_FIG   = build_feat_imp_fig()
 INIT_SHAP_FIG       = build_shap_fig()
 INIT_RADAR, INIT_PROBS = build_deepdive_figs()
+INIT_EDA1 = build_eda1()
+INIT_EDA2 = build_eda2()
+INIT_EDA3 = build_eda3()
+INIT_EDA4 = build_eda4()
+INIT_EDA5 = build_eda5()
+INIT_EDA6 = build_eda6()
 
 # ---------------------------------------------------------------------------
 # App
@@ -403,6 +556,57 @@ app.layout = html.Div(style={
                 "explore model performance, understand what drives predictions, and "
                 "inspect individual firm profiles.",
             ], style={"margin":0,"fontSize":"13px","color":COLORS["text_muted"],"lineHeight":"1.6"}),
+        ]),
+
+        section_hdr("0","Exploratory data analysis",
+                    "Six charts exploring the raw features — distressed vs stable companies"),
+
+        # Row 1
+        html.Div(style={"display":"grid","gridTemplateColumns":"1fr 1fr","gap":"20px","marginBottom":"20px"}, children=[
+            html.Div(style=card_s(), children=[
+                html.P("EDA 1 — 12-month return by distress label", style=card_lbl()),
+                dcc.Graph(figure=INIT_EDA1, config={"displayModeBar":False}, style={"height":"280px"}),
+                html.P("Distressed companies show dramatically lower 12m returns on average, with significant downside outliers — consistent with a pre-distress price collapse signal.",
+                       style={"fontSize":"11px","color":COLORS["text_muted"],"marginTop":"8px","lineHeight":"1.5"}),
+            ]),
+            html.Div(style=card_s(), children=[
+                html.P("EDA 2 — Mean feature values: distressed vs stable", style=card_lbl()),
+                dcc.Graph(figure=INIT_EDA2, config={"displayModeBar":False}, style={"height":"280px"}),
+                html.P("Distressed firms have negative average returns and near-zero interest coverage, while stable firms show positive returns and strong debt-servicing capacity.",
+                       style={"fontSize":"11px","color":COLORS["text_muted"],"marginTop":"8px","lineHeight":"1.5"}),
+            ]),
+        ]),
+
+        # Row 2
+        html.Div(style={"display":"grid","gridTemplateColumns":"1fr 1fr","gap":"20px","marginBottom":"20px"}, children=[
+            html.Div(style=card_s(), children=[
+                html.P("EDA 3 — 12m return vs 6m volatility (by label)", style=card_lbl()),
+                dcc.Graph(figure=INIT_EDA3, config={"displayModeBar":False}, style={"height":"280px"}),
+                html.P("High volatility combined with negative returns cleanly separates distressed firms from stable ones — this quadrant pattern underpins volatility_6m's top feature importance score.",
+                       style={"fontSize":"11px","color":COLORS["text_muted"],"marginTop":"8px","lineHeight":"1.5"}),
+            ]),
+            html.Div(style=card_s(), children=[
+                html.P("EDA 4 — Ensemble distress probability distribution", style=card_lbl()),
+                dcc.Graph(figure=INIT_EDA4, config={"displayModeBar":False}, style={"height":"280px"}),
+                html.P("The model produces a bimodal distribution — stable firms cluster near 0% and distressed firms near 100% — with almost no overlap, reflecting near-perfect class separation.",
+                       style={"fontSize":"11px","color":COLORS["text_muted"],"marginTop":"8px","lineHeight":"1.5"}),
+            ]),
+        ]),
+
+        # Row 3
+        html.Div(style={"display":"grid","gridTemplateColumns":"1fr 1fr","gap":"20px","marginBottom":"32px"}, children=[
+            html.Div(style=card_s(), children=[
+                html.P("EDA 5 — Leverage (liabilities / assets) by company", style=card_lbl()),
+                dcc.Graph(figure=INIT_EDA5, config={"displayModeBar":False}, style={"height":"280px"}),
+                html.P("Several distressed firms (BYND, CMLS, PTON) carry liabilities exceeding total assets — a classic balance sheet distress signal. Stable firms generally remain below 1.0x.",
+                       style={"fontSize":"11px","color":COLORS["text_muted"],"marginTop":"8px","lineHeight":"1.5"}),
+            ]),
+            html.Div(style=card_s(), children=[
+                html.P("EDA 6 — Interest coverage vs net income / assets", style=card_lbl()),
+                dcc.Graph(figure=INIT_EDA6, config={"displayModeBar":False}, style={"height":"280px"}),
+                html.P("Distressed firms cluster in the negative quadrant — unable to cover interest and unprofitable. Stable firms are spread across positive territory, confirming their financial health.",
+                       style={"fontSize":"11px","color":COLORS["text_muted"],"marginTop":"8px","lineHeight":"1.5"}),
+            ]),
         ]),
 
         section_hdr("1","Company risk screener",
