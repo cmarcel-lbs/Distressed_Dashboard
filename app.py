@@ -407,6 +407,9 @@ app.layout = html.Div(style={
 
         section_hdr("1","Company risk screener",
                     "Filter by tier and probability threshold — results update live"),
+        html.P("Table sorted by selected model score, highest to lowest ↓",
+               style={"fontSize":"12px","color":COLORS["text_muted"],
+                      "marginTop":"-8px","marginBottom":"14px","fontStyle":"italic"}),
 
         html.Div(style={"display":"grid","gridTemplateColumns":"210px 1fr",
                         "gap":"20px","marginBottom":"32px"}, children=[
