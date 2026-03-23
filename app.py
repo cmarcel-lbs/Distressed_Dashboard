@@ -210,12 +210,12 @@ def build_cv_fig():
             width=width, marker_color=color,
             text=[f"{v:.2f}" for v in cv_df[c]], textposition="outside",
         ))
-    fig.update_layout(**PLOT_BG, barmode="group",
-                      xaxis=dict(tickvals=list(x_pos), ticktext=cv_df["Model"].tolist(), **GRID),
-                      yaxis=dict(range=[0,1.18], **GRID),
-                      margin=dict(l=10,r=10,t=36,b=10),
-                      legend=dict(orientation="h", yanchor="bottom", y=1.02,
-                                  xanchor="right", x=1, bgcolor="rgba(0,0,0,0)", font_size=11))
+
+
+
+
+
+
     return fig
 
 def build_feat_imp_fig():
