@@ -306,6 +306,30 @@ def build_deepdive_figs(ticker="AMC"):
                             margin=dict(l=10,r=10,t=20,b=10), showlegend=False)
     return radar_fig, prob_fig
 
+def build_tuning_fig():
+    params = [
+        "None / 50", "None / 100", "None / 200",
+        "5 / 50",    "5 / 100",    "5 / 200",
+        "10 / 50",   "10 / 100",   "10 / 200",
+    ]
+    auc_vals = [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+    std_vals = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    fig = go.Figure(go.Bar(
+        x=params, y=auc_vals,
+        error_y=dict(type="data", array=std_vals, visible=True,
+                     color=COLORS["text_muted"], thickness=1.5),
+        marker_color=COLORS["stable"],
+        text=[f"{v:.2f}" for v in auc_vals],
+        textposition="outside",
+    ))
+    fig.update_layout(**PLOT_BG,
+                      xaxis=dict(title="Max depth / N estimators", **GRID,
+                                 tickangle=-30, tickfont_size=11),
+                      yaxis=dict(range=[0, 1.18], title="Cross-validated AUC", **GRID),
+                      margin=dict(l=10, r=10, t=10, b=80),
+                      showlegend=False)
+    return fig
+
 # Build all initial figures and table data once at startup
 _init_display = distress_df.sort_values("prob_ensemble", ascending=False).copy()
 _init_display["distress_label"] = _init_display["distress_label"].map({1:"Distressed",0:"Stable"})
@@ -319,6 +343,7 @@ INIT_TABLE_COLS = [
     {"name":"Selected score","id":"score_fmt"},
     {"name":"Ensemble score","id":"ensemble_fmt"},
 ]
+INIT_TUNING_FIG     = build_tuning_fig()
 INIT_SCREENER_FIG   = build_screener_fig()
 INIT_CV_FIG         = build_cv_fig()
 INIT_FEAT_IMP_FIG   = build_feat_imp_fig()
@@ -424,8 +449,6 @@ app.layout = html.Div(style={
                 html.Div(id="screener-empty-msg"),
                 dash_table.DataTable(
                     id="screener-table",
-                    data=INIT_TABLE_DATA,
-                    columns=INIT_TABLE_COLS,
                     style_table={"overflowX":"auto","borderRadius":"6px",
                                  "marginBottom":"16px","border":f"1px solid {COLORS['border']}"},
                     style_header={"backgroundColor":COLORS["border"],"color":COLORS["text"],
@@ -435,6 +458,11 @@ app.layout = html.Div(style={
                     style_cell={"backgroundColor":COLORS["panel"],"color":COLORS["text"],
                                 "border":f"1px solid {COLORS['border']}",
                                 "fontSize":"13px","padding":"9px 14px","textAlign":"left"},
+                    style_filter={"backgroundColor":COLORS["panel"],"color":"#E8EDF2",
+                                  "border":f"1px solid {COLORS['border']}"},
+                    style_filter_conditional=[
+                        {"if":{"column_id":"ticker"},"color":"#E8EDF2"},
+                    ],
                     style_data_conditional=[
                         {"if":{"filter_query":'{risk_tier} = "Critical"',"column_id":"risk_tier"},
                          "color":COLORS["distressed"],"fontWeight":"600"},
@@ -466,16 +494,12 @@ app.layout = html.Div(style={
                 html.Div(style=card_s(), children=[
                     html.P("ROC curves — all models (AUC = 1.00)", style=card_lbl()),
                     html.Img(src="/assets/roc_curves.png",
-                             style={"width":"100%","borderRadius":"4px","maxHeight":"180px",
-                                    "objectFit":"contain","filter":"invert(1) hue-rotate(180deg)",
-                                    "backgroundColor":COLORS["panel"]}),
+                             style={"width":"100%","borderRadius":"4px","maxHeight":"180px","objectFit":"contain"}),
                 ]),
                 html.Div(style=card_s(), children=[
                     html.P("Confusion matrices (training data)", style=card_lbl()),
                     html.Img(src="/assets/confusion_matrices.png",
-                             style={"width":"100%","borderRadius":"4px","maxHeight":"150px",
-                                    "objectFit":"contain","filter":"invert(1) hue-rotate(180deg)",
-                                    "backgroundColor":COLORS["panel"]}),
+                             style={"width":"100%","borderRadius":"4px","maxHeight":"150px","objectFit":"contain"}),
                 ]),
             ]),
         ]),
@@ -483,9 +507,7 @@ app.layout = html.Div(style={
         html.Div(style={**card_s(),"marginBottom":"32px"}, children=[
             html.P("Random Forest hyperparameter tuning", style=card_lbl()),
             html.Img(src="/assets/tuning_results.png",
-                     style={"width":"100%","borderRadius":"4px","maxHeight":"220px",
-                            "objectFit":"contain","filter":"invert(1) hue-rotate(180deg)",
-                            "backgroundColor":COLORS["panel"]}),
+                     style={"width":"100%","borderRadius":"4px","maxHeight":"220px","objectFit":"contain"}),
             html.P("All 9 combinations (depth x estimators) reach AUC ~1.00, "
                    "confirming the signal strength is robust across hyperparameter choices.",
                    style={"fontSize":"12px","color":COLORS["text_muted"],
@@ -505,9 +527,7 @@ app.layout = html.Div(style={
             html.Div(style=card_s(), children=[
                 html.P("SHAP beeswarm — feature values coloured by distress label", style=card_lbl()),
                 html.Img(src="/assets/shap_beeswarm.png",
-                         style={"width":"100%","borderRadius":"4px","maxHeight":"310px",
-                                "objectFit":"contain","filter":"invert(1) hue-rotate(180deg)",
-                                "backgroundColor":COLORS["panel"]}),
+                         style={"width":"100%","borderRadius":"4px","maxHeight":"310px","objectFit":"contain"}),
             ]),
         ]),
 
@@ -581,6 +601,7 @@ app.layout = html.Div(style={
     Input("tier-filter","value"),
     Input("prob-threshold","value"),
     Input("model-select-screener","value"),
+    prevent_initial_call=False,
 )
 def update_screener(tiers, threshold, model_col):
     filtered = distress_df[
@@ -598,7 +619,7 @@ def update_screener(tiers, threshold, model_col):
     bar_colors = [tier_color(t) for t in filtered["risk_tier"]]
     tickers    = filtered["ticker"].tolist()
 
-    display = filtered[["ticker","risk_tier","distress_label",model_col,"prob_ensemble"]].copy()
+    display = filtered.copy()
     display["distress_label"] = display["distress_label"].map({1:"Distressed",0:"Stable"})
     display["score_fmt"]      = display[model_col].apply(lambda x: f"{float(x):.1%}")
     display["ensemble_fmt"]   = display["prob_ensemble"].apply(lambda x: f"{float(x):.1%}")
