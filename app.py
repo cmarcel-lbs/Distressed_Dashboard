@@ -306,7 +306,20 @@ def build_deepdive_figs(ticker="AMC"):
                             margin=dict(l=10,r=10,t=20,b=10), showlegend=False)
     return radar_fig, prob_fig
 
-# Build all initial figures once at startup
+# Build all initial figures and table data once at startup
+_init_display = distress_df.sort_values("prob_ensemble", ascending=False).copy()
+_init_display["distress_label"] = _init_display["distress_label"].map({1:"Distressed",0:"Stable"})
+_init_display["prob_ensemble_fmt"] = _init_display["prob_ensemble"].apply(lambda x: f"{x:.1%}")
+INIT_TABLE_DATA = _init_display[["ticker","risk_tier","distress_label","prob_ensemble_fmt","prob_ensemble_fmt"]].rename(
+    columns={"prob_ensemble_fmt":"prob_ensemble"}
+).to_dict("records")
+INIT_TABLE_COLS = [
+    {"name":"Ticker","id":"ticker"},
+    {"name":"Risk tier","id":"risk_tier"},
+    {"name":"True label","id":"distress_label"},
+    {"name":"Selected score","id":"prob_ensemble"},
+    {"name":"Ensemble score","id":"prob_ensemble"},
+]
 INIT_SCREENER_FIG   = build_screener_fig()
 INIT_CV_FIG         = build_cv_fig()
 INIT_FEAT_IMP_FIG   = build_feat_imp_fig()
@@ -412,6 +425,8 @@ app.layout = html.Div(style={
                 html.Div(id="screener-empty-msg"),
                 dash_table.DataTable(
                     id="screener-table",
+                    data=INIT_TABLE_DATA,
+                    columns=INIT_TABLE_COLS,
                     style_table={"overflowX":"auto","borderRadius":"6px",
                                  "marginBottom":"16px","border":f"1px solid {COLORS['border']}"},
                     style_header={"backgroundColor":COLORS["border"],"color":COLORS["text"],
