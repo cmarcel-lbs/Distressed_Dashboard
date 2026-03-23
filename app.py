@@ -309,16 +309,15 @@ def build_deepdive_figs(ticker="AMC"):
 # Build all initial figures and table data once at startup
 _init_display = distress_df.sort_values("prob_ensemble", ascending=False).copy()
 _init_display["distress_label"] = _init_display["distress_label"].map({1:"Distressed",0:"Stable"})
-_init_display["prob_ensemble_fmt"] = _init_display["prob_ensemble"].apply(lambda x: f"{x:.1%}")
-INIT_TABLE_DATA = _init_display[["ticker","risk_tier","distress_label","prob_ensemble_fmt","prob_ensemble_fmt"]].rename(
-    columns={"prob_ensemble_fmt":"prob_ensemble"}
-).to_dict("records")
+_init_display["score_fmt"] = _init_display["prob_ensemble"].apply(lambda x: f"{x:.1%}")
+_init_display["ensemble_fmt"] = _init_display["prob_ensemble"].apply(lambda x: f"{x:.1%}")
+INIT_TABLE_DATA = _init_display[["ticker","risk_tier","distress_label","score_fmt","ensemble_fmt"]].to_dict("records")
 INIT_TABLE_COLS = [
     {"name":"Ticker","id":"ticker"},
     {"name":"Risk tier","id":"risk_tier"},
     {"name":"True label","id":"distress_label"},
-    {"name":"Selected score","id":"prob_ensemble"},
-    {"name":"Ensemble score","id":"prob_ensemble"},
+    {"name":"Selected score","id":"score_fmt"},
+    {"name":"Ensemble score","id":"ensemble_fmt"},
 ]
 INIT_SCREENER_FIG   = build_screener_fig()
 INIT_CV_FIG         = build_cv_fig()
@@ -467,14 +466,16 @@ app.layout = html.Div(style={
                 html.Div(style=card_s(), children=[
                     html.P("ROC curves — all models (AUC = 1.00)", style=card_lbl()),
                     html.Img(src="/assets/roc_curves.png",
-                             style={"width":"100%","borderRadius":"4px",
-                                    "maxHeight":"180px","objectFit":"contain"}),
+                             style={"width":"100%","borderRadius":"4px","maxHeight":"180px",
+                                    "objectFit":"contain","filter":"invert(1) hue-rotate(180deg)",
+                                    "backgroundColor":COLORS["panel"]}),
                 ]),
                 html.Div(style=card_s(), children=[
                     html.P("Confusion matrices (training data)", style=card_lbl()),
                     html.Img(src="/assets/confusion_matrices.png",
-                             style={"width":"100%","borderRadius":"4px",
-                                    "maxHeight":"150px","objectFit":"contain"}),
+                             style={"width":"100%","borderRadius":"4px","maxHeight":"150px",
+                                    "objectFit":"contain","filter":"invert(1) hue-rotate(180deg)",
+                                    "backgroundColor":COLORS["panel"]}),
                 ]),
             ]),
         ]),
@@ -482,8 +483,9 @@ app.layout = html.Div(style={
         html.Div(style={**card_s(),"marginBottom":"32px"}, children=[
             html.P("Random Forest hyperparameter tuning", style=card_lbl()),
             html.Img(src="/assets/tuning_results.png",
-                     style={"width":"100%","borderRadius":"4px",
-                            "maxHeight":"220px","objectFit":"contain"}),
+                     style={"width":"100%","borderRadius":"4px","maxHeight":"220px",
+                            "objectFit":"contain","filter":"invert(1) hue-rotate(180deg)",
+                            "backgroundColor":COLORS["panel"]}),
             html.P("All 9 combinations (depth x estimators) reach AUC ~1.00, "
                    "confirming the signal strength is robust across hyperparameter choices.",
                    style={"fontSize":"12px","color":COLORS["text_muted"],
@@ -503,8 +505,9 @@ app.layout = html.Div(style={
             html.Div(style=card_s(), children=[
                 html.P("SHAP beeswarm — feature values coloured by distress label", style=card_lbl()),
                 html.Img(src="/assets/shap_beeswarm.png",
-                         style={"width":"100%","borderRadius":"4px",
-                                "maxHeight":"310px","objectFit":"contain"}),
+                         style={"width":"100%","borderRadius":"4px","maxHeight":"310px",
+                                "objectFit":"contain","filter":"invert(1) hue-rotate(180deg)",
+                                "backgroundColor":COLORS["panel"]}),
             ]),
         ]),
 
@@ -535,7 +538,7 @@ app.layout = html.Div(style={
                         id="deepdive-company",
                         options=[{"label":t,"value":t} for t in sorted(distress_df["ticker"].tolist())],
                         value="AMC", clearable=False,
-                        style={"fontSize":"13px"},
+                        style={"fontSize":"13px","color":"#1F2D3D","fontWeight":"500"},
                     ),
                 ]),
                 html.Div(id="deepdive-scorecard"),
@@ -597,15 +600,16 @@ def update_screener(tiers, threshold, model_col):
 
     display = filtered[["ticker","risk_tier","distress_label",model_col,"prob_ensemble"]].copy()
     display["distress_label"] = display["distress_label"].map({1:"Distressed",0:"Stable"})
-    display[model_col]        = display[model_col].apply(lambda x: f"{float(x):.1%}")
-    display["prob_ensemble"]  = display["prob_ensemble"].apply(lambda x: f"{float(x):.1%}")
+    display["score_fmt"]      = display[model_col].apply(lambda x: f"{float(x):.1%}")
+    display["ensemble_fmt"]   = display["prob_ensemble"].apply(lambda x: f"{float(x):.1%}")
+    display = display[["ticker","risk_tier","distress_label","score_fmt","ensemble_fmt"]]
 
     cols = [
         {"name":"Ticker",         "id":"ticker"},
         {"name":"Risk tier",      "id":"risk_tier"},
         {"name":"True label",     "id":"distress_label"},
-        {"name":"Selected score", "id":model_col},
-        {"name":"Ensemble score", "id":"prob_ensemble"},
+        {"name":"Selected score", "id":"score_fmt"},
+        {"name":"Ensemble score", "id":"ensemble_fmt"},
     ]
 
     fig = go.Figure(go.Bar(
