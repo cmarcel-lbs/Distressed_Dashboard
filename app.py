@@ -289,7 +289,7 @@ app.layout = html.Div(style={
                     ],
                     page_size=18, sort_action="native", filter_action="native",
                 ),
-                dcc.Graph(id="screener-bar", config={"displayModeBar":False},
+                dcc.Graph(id="screener-bar", figure=go.Figure(), config={"displayModeBar":False},
                           style={"height":"280px"}),
             ]),
         ]),
@@ -301,7 +301,7 @@ app.layout = html.Div(style={
                         "gap":"20px","marginBottom":"20px"}, children=[
             html.Div(style=card_s(), children=[
                 html.P("Cross-validation scores (AUC, F1, Precision, Recall)", style=card_lbl()),
-                dcc.Graph(id="cv-chart", config={"displayModeBar":False}, style={"height":"270px"}),
+                dcc.Graph(id="cv-chart", figure=go.Figure(), config={"displayModeBar":False}, style={"height":"270px"}),
             ]),
             html.Div(style={"display":"flex","flexDirection":"column","gap":"16px"}, children=[
                 html.Div(style=card_s(), children=[
@@ -337,7 +337,7 @@ app.layout = html.Div(style={
                         "gap":"20px","marginBottom":"20px"}, children=[
             html.Div(style=card_s(), children=[
                 html.P("Random Forest feature importances (Gini impurity)", style=card_lbl()),
-                dcc.Graph(id="feat-imp-chart", config={"displayModeBar":False},
+                dcc.Graph(id="feat-imp-chart", figure=go.Figure(), config={"displayModeBar":False},
                           style={"height":"310px"}),
             ]),
             html.Div(style=card_s(), children=[
@@ -359,7 +359,7 @@ app.layout = html.Div(style={
                     style={"width":"160px","fontSize":"13px"},
                 ),
             ]),
-            dcc.Graph(id="shap-waterfall-chart", config={"displayModeBar":False},
+            dcc.Graph(id="shap-waterfall-chart", figure=go.Figure(), config={"displayModeBar":False},
                       style={"height":"320px"}),
         ]),
 
@@ -383,12 +383,12 @@ app.layout = html.Div(style={
             html.Div(style={"display":"grid","gridTemplateColumns":"1fr 1fr","gap":"16px"}, children=[
                 html.Div(style=card_s(), children=[
                     html.P("Feature profile (normalised 0-1 across all 18 companies)", style=card_lbl()),
-                    dcc.Graph(id="deepdive-radar", config={"displayModeBar":False},
+                    dcc.Graph(id="deepdive-radar", figure=go.Figure(), config={"displayModeBar":False},
                               style={"height":"290px"}),
                 ]),
                 html.Div(style=card_s(), children=[
                     html.P("Distress probability by model", style=card_lbl()),
-                    dcc.Graph(id="deepdive-probs", config={"displayModeBar":False},
+                    dcc.Graph(id="deepdive-probs", figure=go.Figure(), config={"displayModeBar":False},
                               style={"height":"290px"}),
                 ]),
             ]),
@@ -414,6 +414,7 @@ app.layout = html.Div(style={
     Input("tier-filter","value"),
     Input("prob-threshold","value"),
     Input("model-select-screener","value"),
+    prevent_initial_call=False,
 )
 def update_screener(tiers, threshold, model_col):
     filtered = distress_df[
@@ -551,6 +552,7 @@ def update_shap_waterfall(ticker):
     Output("deepdive-radar","figure"),
     Output("deepdive-probs","figure"),
     Input("deepdive-company","value"),
+    prevent_initial_call=False,
 )
 def update_deepdive(ticker):
     row_d = distress_df[distress_df["ticker"] == ticker].iloc[0]
