@@ -558,7 +558,7 @@ app.layout = html.Div(style={
             ], style={"margin":0,"fontSize":"13px","color":COLORS["text_muted"],"lineHeight":"1.6"}),
         ]),
 
-        section_hdr("0","Exploratory data analysis",
+        section_hdr("5","Exploratory data analysis",
                     "Six charts exploring the raw features — distressed vs stable companies"),
 
         # Row 1
