@@ -12,9 +12,6 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 
-# ---------------------------------------------------------------------------
-# Colour palette  (matches Person 4 / Cristian)
-# ---------------------------------------------------------------------------
 COLORS = {
     "distressed": "#E84855",
     "stable":     "#2E86AB",
@@ -34,9 +31,6 @@ TIER_COLORS = {
     "Low":      "#2E86AB",
 }
 
-# ---------------------------------------------------------------------------
-# Data  (all values sourced from Tanmay's output CSVs)
-# ---------------------------------------------------------------------------
 distress_df = pd.DataFrame({
     "ticker":        ["AMC","BYND","WKHS","CMLS","PTON","SEAT","SPCE","BBBY","PLUG",
                       "HD","AAPL","JNJ","MCD","MSFT","V","PG","KO","WMT"],
@@ -131,22 +125,16 @@ FEATURE_IMPORTANCE = {
     "volume_change_1m":0.014,
 }
 
-# ---------------------------------------------------------------------------
-# Shared Plotly layout template
-# ---------------------------------------------------------------------------
+# PLOT_BG — only keys that are NEVER overridden per-chart
 PLOT_BG = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(color=COLORS["text"], family="'DM Sans', sans-serif", size=12),
-    margin=dict(l=10, r=10, t=36, b=10),
+    font=dict(color=COLORS["text"], family="DM Sans, sans-serif", size=12),
     legend=dict(bgcolor="rgba(0,0,0,0)", borderwidth=0),
-    xaxis=dict(gridcolor=COLORS["border"], zerolinecolor=COLORS["border"]),
-    yaxis=dict(gridcolor=COLORS["border"], zerolinecolor=COLORS["border"]),
 )
 
-# ---------------------------------------------------------------------------
-# Style helpers
-# ---------------------------------------------------------------------------
+GRID = dict(gridcolor=COLORS["border"], zerolinecolor=COLORS["border"])
+
 def tier_color(t):
     return TIER_COLORS.get(t, COLORS["neutral"])
 
@@ -184,11 +172,8 @@ def section_hdr(num, title, subtitle):
         html.Span(subtitle, style={"fontSize":"12px","color":COLORS["text_muted"]}),
     ])
 
-# ---------------------------------------------------------------------------
-# App
-# ---------------------------------------------------------------------------
 app = dash.Dash(__name__, title="Corporate Distress EWS")
-server = app.server   # for Render / gunicorn
+server = app.server
 
 app.layout = html.Div(style={
     "backgroundColor":COLORS["background"],"minHeight":"100vh",
@@ -198,11 +183,9 @@ app.layout = html.Div(style={
     html.Link(rel="stylesheet",
               href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap"),
 
-    # Header
     html.Div(style={
         "backgroundColor":COLORS["panel"],"borderBottom":f"1px solid {COLORS['border']}",
-        "padding":"16px 32px","display":"flex","alignItems":"center",
-        "justifyContent":"space-between",
+        "padding":"16px 32px","display":"flex","alignItems":"center","justifyContent":"space-between",
     }, children=[
         html.Div([
             html.Span("▲ ", style={"color":COLORS["distressed"],"fontSize":"18px"}),
@@ -213,23 +196,20 @@ app.layout = html.Div(style={
                  style={"fontSize":"11px","color":COLORS["text_muted"]}),
     ]),
 
-    # KPI strip
     html.Div(style={
         "display":"grid","gridTemplateColumns":"repeat(5,1fr)",
         "gap":"1px","backgroundColor":COLORS["border"],
         "borderBottom":f"1px solid {COLORS['border']}",
     }, children=[
-        kpi("9",  "Critical companies",    COLORS["distressed"]),
-        kpi("0",  "High / Moderate risk",  COLORS["highlight"]),
-        kpi("9",  "Low risk",              COLORS["stable"]),
-        kpi("1.00","Best model AUC",       "#a8d8a8"),
-        kpi("Random Forest","Top model",   COLORS["text_muted"]),
+        kpi("9",  "Critical companies",   COLORS["distressed"]),
+        kpi("0",  "High / Moderate risk", COLORS["highlight"]),
+        kpi("9",  "Low risk",             COLORS["stable"]),
+        kpi("1.00","Best model AUC",      "#a8d8a8"),
+        kpi("Random Forest","Top model",  COLORS["text_muted"]),
     ]),
 
-    # Main
     html.Div(style={"padding":"24px 28px","maxWidth":"1400px","margin":"0 auto"}, children=[
 
-        # Intro
         html.Div(style={
             "backgroundColor":COLORS["panel"],
             "borderLeft":f"3px solid {COLORS['highlight']}",
@@ -244,16 +224,11 @@ app.layout = html.Div(style={
             ], style={"margin":0,"fontSize":"13px","color":COLORS["text_muted"],"lineHeight":"1.6"}),
         ]),
 
-        # ================================================================
-        # PANEL 1 — Risk screener
-        # ================================================================
         section_hdr("1","Company risk screener",
                     "Filter by tier and probability threshold — results update live"),
 
         html.Div(style={"display":"grid","gridTemplateColumns":"210px 1fr",
                         "gap":"20px","marginBottom":"32px"}, children=[
-
-            # Controls
             html.Div(style={"display":"flex","flexDirection":"column","gap":"20px"}, children=[
                 html.Div([
                     html.Label("Risk tier", style=label_s()),
@@ -289,8 +264,6 @@ app.layout = html.Div(style={
                     ),
                 ]),
             ]),
-
-            # Table + bar
             html.Div([
                 html.Div(id="screener-empty-msg"),
                 dash_table.DataTable(
@@ -321,9 +294,6 @@ app.layout = html.Div(style={
             ]),
         ]),
 
-        # ================================================================
-        # PANEL 2 — Model performance
-        # ================================================================
         section_hdr("2","Model performance",
                     "3-fold stratified cross-validation across all three classifiers"),
 
@@ -360,9 +330,6 @@ app.layout = html.Div(style={
                           "marginTop":"10px","marginBottom":0,"lineHeight":"1.6"}),
         ]),
 
-        # ================================================================
-        # PANEL 3 — Feature importance & SHAP
-        # ================================================================
         section_hdr("3","Feature importance & SHAP",
                     "What drives the model's distress predictions?"),
 
@@ -396,9 +363,6 @@ app.layout = html.Div(style={
                       style={"height":"320px"}),
         ]),
 
-        # ================================================================
-        # PANEL 4 — Company deep dive
-        # ================================================================
         section_hdr("4","Company deep dive",
                     "Inspect features and probability breakdown for any firm"),
 
@@ -431,7 +395,6 @@ app.layout = html.Div(style={
         ]),
     ]),
 
-    # Footer
     html.Div(style={
         "borderTop":f"1px solid {COLORS['border']}","padding":"12px 32px",
         "fontSize":"11px","color":COLORS["text_muted"],
@@ -442,10 +405,6 @@ app.layout = html.Div(style={
     ]),
 ])
 
-
-# ---------------------------------------------------------------------------
-# Callbacks
-# ---------------------------------------------------------------------------
 
 @app.callback(
     Output("screener-table","data"),
@@ -470,13 +429,14 @@ def update_screener(tiers, threshold, model_col):
         )
         return [], [], go.Figure(), empty
 
-    scores_num = filtered[model_col].tolist()
+    scores_num  = filtered[model_col].tolist()
     bar_colors  = [tier_color(t) for t in filtered["risk_tier"]]
+    tickers     = filtered["ticker"].tolist()
 
     display = filtered[["ticker","risk_tier","distress_label",model_col,"prob_ensemble"]].copy()
-    display["distress_label"] = display["distress_label"].map({1:"Distressed",0:"Stable"})
-    display[model_col]        = display[model_col].map("{:.1%}".format)
-    display["prob_ensemble"]  = display["prob_ensemble"].map("{:.1%}".format)
+    display["distress_label"]  = display["distress_label"].map({1:"Distressed",0:"Stable"})
+    display[model_col]         = display[model_col].apply(lambda x: f"{float(x):.1%}")
+    display["prob_ensemble"]   = display["prob_ensemble"].apply(lambda x: f"{float(x):.1%}")
 
     cols = [
         {"name":"Ticker",         "id":"ticker"},
@@ -487,9 +447,10 @@ def update_screener(tiers, threshold, model_col):
     ]
 
     fig = go.Figure(go.Bar(
-        x=filtered["ticker"].tolist(), y=scores_num,
+        x=tickers, y=scores_num,
         marker_color=bar_colors,
-        text=[f"{v:.0%}" for v in scores_num], textposition="outside", cliponaxis=False,
+        text=[f"{v:.0%}" for v in scores_num],
+        textposition="outside", cliponaxis=False,
     ))
     fig.add_hline(y=0.8, line_dash="dot", line_color=COLORS["distressed"],
                   annotation_text="Critical (80%)", annotation_font_size=10,
@@ -497,8 +458,14 @@ def update_screener(tiers, threshold, model_col):
     fig.add_hline(y=0.6, line_dash="dot", line_color=COLORS["highlight"],
                   annotation_text="High (60%)", annotation_font_size=10,
                   annotation_position="bottom right")
-    fig.update_layout(**PLOT_BG, yaxis_tickformat=".0%", yaxis_range=[0,1.18],
-                      showlegend=False, title_text="Distress probability by company")
+    fig.update_layout(
+        **PLOT_BG,
+        xaxis=dict(**GRID),
+        yaxis=dict(tickformat=".0%", range=[0,1.18], **GRID),
+        margin=dict(l=10,r=10,t=36,b=10),
+        showlegend=False,
+        title_text="Distress probability by company",
+    )
     return display.to_dict("records"), cols, fig, None
 
 
@@ -519,10 +486,11 @@ def update_cv_chart(_):
         ))
 
     fig.update_layout(
-        **PLOT_BG, barmode="group",
-        xaxis=dict(tickvals=list(x_pos), ticktext=cv_df["Model"].tolist(),
-                   gridcolor=COLORS["border"], zerolinecolor=COLORS["border"]),
-        yaxis=dict(range=[0,1.18], gridcolor=COLORS["border"], zerolinecolor=COLORS["border"]),
+        **PLOT_BG,
+        barmode="group",
+        xaxis=dict(tickvals=list(x_pos), ticktext=cv_df["Model"].tolist(), **GRID),
+        yaxis=dict(range=[0,1.18], **GRID),
+        margin=dict(l=10,r=10,t=36,b=10),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
                     bgcolor="rgba(0,0,0,0)", font_size=11),
     )
@@ -544,8 +512,12 @@ def update_feat_imp(_):
         x=values, y=labels, orientation="h", marker_color=colors,
         text=[f"{v:.3f}" for v in values], textposition="outside",
     ))
-    fig.update_layout(**PLOT_BG, xaxis_range=[0,0.42],
-                      margin=dict(l=10,r=60,t=10,b=10))
+    fig.update_layout(
+        **PLOT_BG,
+        xaxis=dict(range=[0,0.42], **GRID),
+        yaxis=dict(**GRID),
+        margin=dict(l=10,r=60,t=10,b=10),
+    )
     return fig
 
 
@@ -556,9 +528,9 @@ def update_shap_waterfall(ticker):
     vals.sort(key=lambda x: abs(x[1]))
     names, values = zip(*vals)
     bar_colors = [COLORS["distressed"] if v > 0 else COLORS["stable"] for v in values]
-
     tier = distress_df[distress_df["ticker"] == ticker]["risk_tier"].values[0]
-    fig  = go.Figure(go.Bar(
+
+    fig = go.Figure(go.Bar(
         x=list(values), y=list(names), orientation="h",
         marker_color=bar_colors,
         text=[f"{v:+.3f}" for v in values], textposition="outside",
@@ -566,9 +538,9 @@ def update_shap_waterfall(ticker):
     fig.add_vline(x=0, line_color=COLORS["text_muted"], line_width=1)
     fig.update_layout(
         **PLOT_BG,
-        title=dict(text=f"{ticker}  [{tier}]  — SHAP feature contributions",
-                   font_size=13, x=0),
-        xaxis_title="SHAP contribution (positive = pushes toward distress)",
+        title=dict(text=f"{ticker}  [{tier}]  — SHAP feature contributions", font_size=13, x=0),
+        xaxis=dict(title="SHAP contribution (positive = pushes toward distress)", **GRID),
+        yaxis=dict(**GRID),
         margin=dict(l=10,r=70,t=44,b=30),
     )
     return fig
@@ -604,7 +576,6 @@ def update_deepdive(ticker):
         ]),
     ])
 
-    # Radar — normalise to [0,1]
     r_vals = []
     for f in FEATURES:
         v = row_f[f]
@@ -614,9 +585,9 @@ def update_deepdive(ticker):
         else:
             r_vals.append(float(np.clip((v - all_v.min()) / (all_v.max() - all_v.min()), 0, 1)))
 
-    lbls    = [FEATURE_LABELS.get(f,f) for f in FEATURES]
-    r_c     = r_vals + [r_vals[0]]
-    l_c     = lbls   + [lbls[0]]
+    lbls = [FEATURE_LABELS.get(f,f) for f in FEATURES]
+    r_c  = r_vals + [r_vals[0]]
+    l_c  = lbls   + [lbls[0]]
     rr,gg,bb = int(tc[1:3],16), int(tc[3:5],16), int(tc[5:7],16)
 
     radar_fig = go.Figure(go.Scatterpolar(
@@ -632,13 +603,13 @@ def update_deepdive(ticker):
                             gridcolor=COLORS["border"], color=COLORS["text_muted"]),
             angularaxis=dict(gridcolor=COLORS["border"], color=COLORS["text_muted"]),
         ),
-        margin=dict(l=40,r=40,t=20,b=20), showlegend=False,
+        margin=dict(l=40,r=40,t=20,b=20),
+        showlegend=False,
     )
 
-    # Probability bars
-    models  = ["Logistic Reg.","Random Forest","Gradient Boost","Ensemble"]
-    probs   = [row_d["prob_lr"],row_d["prob_rf"],row_d["prob_gb"],row_d["prob_ensemble"]]
-    bc      = [COLORS["distressed"] if p >= 0.5 else COLORS["stable"] for p in probs]
+    models = ["Logistic Reg.","Random Forest","Gradient Boost","Ensemble"]
+    probs  = [row_d["prob_lr"],row_d["prob_rf"],row_d["prob_gb"],row_d["prob_ensemble"]]
+    bc     = [COLORS["distressed"] if p >= 0.5 else COLORS["stable"] for p in probs]
 
     prob_fig = go.Figure(go.Bar(
         x=models, y=probs, marker_color=bc,
@@ -648,9 +619,10 @@ def update_deepdive(ticker):
                        annotation_text="Decision boundary", annotation_font_size=10)
     prob_fig.update_layout(
         **PLOT_BG,
-        yaxis=dict(range=[0,1.18], tickformat=".0%",
-                   gridcolor=COLORS["border"], zerolinecolor=COLORS["border"]),
-        margin=dict(l=10,r=10,t=20,b=10), showlegend=False,
+        xaxis=dict(**GRID),
+        yaxis=dict(range=[0,1.18], tickformat=".0%", **GRID),
+        margin=dict(l=10,r=10,t=20,b=10),
+        showlegend=False,
     )
     return scorecard, radar_fig, prob_fig
 
