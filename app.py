@@ -334,7 +334,7 @@ def build_tuning_fig():
 _init_display = distress_df.sort_values("prob_ensemble", ascending=False).copy()
 _init_display["distress_label"] = _init_display["distress_label"].map({1:"Distressed",0:"Stable"})
 _init_display["score_fmt"] = _init_display["prob_ensemble"].apply(lambda x: f"{x:.1%}")
-_init_display["ensemble_fmt"] = _init_display["prob_ensemble"].apply(lambda x: f"{x:.1%}")
+_init_display["ensemble_fmt"] = _init_display["prob_ensemble"].apply(lambda x: f"{x:.3%}")
 INIT_TABLE_DATA = _init_display[["ticker","risk_tier","distress_label","score_fmt","ensemble_fmt"]].to_dict("records")
 INIT_TABLE_COLS = [
     {"name":"Ticker","id":"ticker"},
@@ -622,7 +622,7 @@ def update_screener(tiers, threshold, model_col):
     display = filtered.copy()
     display["distress_label"] = display["distress_label"].map({1:"Distressed",0:"Stable"})
     display["score_fmt"]      = display[model_col].apply(lambda x: f"{float(x):.1%}")
-    display["ensemble_fmt"]   = display["prob_ensemble"].apply(lambda x: f"{float(x):.1%}")
+    display["ensemble_fmt"]   = display["prob_ensemble"].apply(lambda x: f"{float(x):.3%}")
     display = display[["ticker","risk_tier","distress_label","score_fmt","ensemble_fmt"]]
 
     cols = [
