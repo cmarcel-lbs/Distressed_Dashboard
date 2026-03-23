@@ -597,6 +597,7 @@ app.layout = html.Div(style={
     Output("screener-table","data"),
     Output("screener-table","columns"),
     Output("screener-bar","figure"),
+    Output("screener-bar","style"),
     Output("screener-empty-msg","children"),
     Input("tier-filter","value"),
     Input("prob-threshold","value"),
@@ -610,10 +611,12 @@ def update_screener(tiers, threshold, model_col):
     ].copy().sort_values(model_col, ascending=False)
 
     if filtered.empty:
-        return [], [], go.Figure(), html.Div(
-            "No companies match this filter. Try lowering the threshold or adding more tiers.",
-            style={"color":COLORS["distressed"],"padding":"20px",
-                   "fontStyle":"italic","fontSize":"13px"})
+        msg = html.Div(
+            "No companies match this filter. No firms in this dataset fall in the High or Moderate risk tiers.",
+            style={"color":COLORS["text_muted"],"padding":"14px 0",
+                   "fontStyle":"italic","fontSize":"13px"},
+        )
+        return [], [], go.Figure(), {"display":"none"}, msg
 
     scores_num = filtered[model_col].tolist()
     bar_colors = [tier_color(t) for t in filtered["risk_tier"]]
@@ -650,7 +653,7 @@ def update_screener(tiers, threshold, model_col):
                       margin=dict(l=10,r=10,t=36,b=10),
                       showlegend=False,
                       title_text="Distress probability by company")
-    return display.to_dict("records"), cols, fig, None
+    return display.to_dict("records"), cols, fig, {"height":"280px"}, None
 
 
 @app.callback(Output("shap-waterfall-chart","figure"), Input("shap-company-select","value"))
