@@ -183,6 +183,8 @@ app.layout = html.Div(style={
     html.Link(rel="stylesheet",
               href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap"),
 
+    dcc.Store(id="page-load-store", data=0),
+
     html.Div(style={
         "backgroundColor":COLORS["panel"],"borderBottom":f"1px solid {COLORS['border']}",
         "padding":"16px 32px","display":"flex","alignItems":"center","justifyContent":"space-between",
@@ -414,9 +416,10 @@ app.layout = html.Div(style={
     Input("tier-filter","value"),
     Input("prob-threshold","value"),
     Input("model-select-screener","value"),
+    Input("page-load-store","data"),
     prevent_initial_call=False,
 )
-def update_screener(tiers, threshold, model_col):
+def update_screener(tiers, threshold, model_col, _):
     filtered = distress_df[
         distress_df["risk_tier"].isin(tiers) &
         (distress_df[model_col] >= threshold)
@@ -470,8 +473,8 @@ def update_screener(tiers, threshold, model_col):
     return display.to_dict("records"), cols, fig, None
 
 
-@app.callback(Output("cv-chart","figure"), Input("tier-filter","value"))
-def update_cv_chart(_):
+@app.callback(Output("cv-chart","figure"), Input("tier-filter","value"), Input("page-load-store","data"))
+def update_cv_chart(_, __):
     metrics    = ["AUC","F1","Precision","Recall"]
     cols       = ["AUC_mean","F1_mean","Precision_mean","Recall_mean"]
     bar_colors = ["#378ADD","#E84855","#F4A261","#888888"]
@@ -498,8 +501,8 @@ def update_cv_chart(_):
     return fig
 
 
-@app.callback(Output("feat-imp-chart","figure"), Input("tier-filter","value"))
-def update_feat_imp(_):
+@app.callback(Output("feat-imp-chart","figure"), Input("tier-filter","value"), Input("page-load-store","data"))
+def update_feat_imp(_, __):
     feats  = sorted(FEATURE_IMPORTANCE.items(), key=lambda x: x[1])
     labels = [FEATURE_LABELS.get(f,f) for f,_ in feats]
     values = [v for _,v in feats]
@@ -522,8 +525,8 @@ def update_feat_imp(_):
     return fig
 
 
-@app.callback(Output("shap-waterfall-chart","figure"), Input("shap-company-select","value"))
-def update_shap_waterfall(ticker):
+@app.callback(Output("shap-waterfall-chart","figure"), Input("shap-company-select","value"), Input("page-load-store","data"))
+def update_shap_waterfall(ticker, _):
     row  = shap_df[shap_df["ticker"] == ticker].iloc[0]
     vals = [(FEATURE_LABELS.get(f,f), float(row[f])) for f in FEATURES]
     vals.sort(key=lambda x: abs(x[1]))
@@ -552,9 +555,10 @@ def update_shap_waterfall(ticker):
     Output("deepdive-radar","figure"),
     Output("deepdive-probs","figure"),
     Input("deepdive-company","value"),
+    Input("page-load-store","data"),
     prevent_initial_call=False,
 )
-def update_deepdive(ticker):
+def update_deepdive(ticker, _):
     row_d = distress_df[distress_df["ticker"] == ticker].iloc[0]
     row_f = features_df[features_df["ticker"] == ticker].iloc[0]
 
