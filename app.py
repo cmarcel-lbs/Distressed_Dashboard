@@ -125,14 +125,12 @@ FEATURE_IMPORTANCE = {
     "volume_change_1m":0.014,
 }
 
-# PLOT_BG — only keys that are NEVER overridden per-chart
 PLOT_BG = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
     font=dict(color=COLORS["text"], family="DM Sans, sans-serif", size=12),
     legend=dict(bgcolor="rgba(0,0,0,0)", borderwidth=0),
 )
-
 GRID = dict(gridcolor=COLORS["border"], zerolinecolor=COLORS["border"])
 
 def tier_color(t):
@@ -172,6 +170,152 @@ def section_hdr(num, title, subtitle):
         html.Span(subtitle, style={"fontSize":"12px","color":COLORS["text_muted"]}),
     ])
 
+# ---------------------------------------------------------------------------
+# Pre-build initial figures — these render immediately on page load
+# ---------------------------------------------------------------------------
+def build_screener_fig(model_col="prob_ensemble"):
+    df = distress_df.sort_values(model_col, ascending=False)
+    scores = df[model_col].tolist()
+    colors = [tier_color(t) for t in df["risk_tier"]]
+    fig = go.Figure(go.Bar(
+        x=df["ticker"].tolist(), y=scores,
+        marker_color=colors,
+        text=[f"{v:.0%}" for v in scores],
+        textposition="outside", cliponaxis=False,
+    ))
+    fig.add_hline(y=0.8, line_dash="dot", line_color=COLORS["distressed"],
+                  annotation_text="Critical (80%)", annotation_font_size=10,
+                  annotation_position="bottom right")
+    fig.add_hline(y=0.6, line_dash="dot", line_color=COLORS["highlight"],
+                  annotation_text="High (60%)", annotation_font_size=10,
+                  annotation_position="bottom right")
+    fig.update_layout(**PLOT_BG,
+                      xaxis=dict(**GRID),
+                      yaxis=dict(tickformat=".0%", range=[0,1.18], **GRID),
+                      margin=dict(l=10,r=10,t=36,b=10),
+                      showlegend=False,
+                      title_text="Distress probability by company")
+    return fig
+
+def build_cv_fig():
+    metrics    = ["AUC","F1","Precision","Recall"]
+    cols       = ["AUC_mean","F1_mean","Precision_mean","Recall_mean"]
+    bar_colors = ["#378ADD","#E84855","#F4A261","#888888"]
+    width = 0.18
+    x_pos = np.arange(len(cv_df))
+    fig = go.Figure()
+    for i, (m, c, color) in enumerate(zip(metrics, cols, bar_colors)):
+        fig.add_trace(go.Bar(
+            name=m, x=[v + (i-1.5)*width for v in x_pos], y=cv_df[c],
+            width=width, marker_color=color,
+            text=[f"{v:.2f}" for v in cv_df[c]], textposition="outside",
+        ))
+    fig.update_layout(**PLOT_BG, barmode="group",
+                      xaxis=dict(tickvals=list(x_pos), ticktext=cv_df["Model"].tolist(), **GRID),
+                      yaxis=dict(range=[0,1.18], **GRID),
+                      margin=dict(l=10,r=10,t=36,b=10),
+                      legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                                  xanchor="right", x=1, bgcolor="rgba(0,0,0,0)", font_size=11))
+    return fig
+
+def build_feat_imp_fig():
+    feats  = sorted(FEATURE_IMPORTANCE.items(), key=lambda x: x[1])
+    labels = [FEATURE_LABELS.get(f,f) for f,_ in feats]
+    values = [v for _,v in feats]
+    colors = [COLORS["distressed"] if v >= 0.15 else
+              COLORS["stable"]     if v >= 0.05 else
+              COLORS["neutral"] for v in values]
+    fig = go.Figure(go.Bar(
+        x=values, y=labels, orientation="h", marker_color=colors,
+        text=[f"{v:.3f}" for v in values], textposition="outside",
+    ))
+    fig.update_layout(**PLOT_BG,
+                      xaxis=dict(range=[0,0.42], **GRID),
+                      yaxis=dict(**GRID),
+                      margin=dict(l=10,r=60,t=10,b=10))
+    return fig
+
+def build_shap_fig(ticker="AMC"):
+    row  = shap_df[shap_df["ticker"] == ticker].iloc[0]
+    vals = [(FEATURE_LABELS.get(f,f), float(row[f])) for f in FEATURES]
+    vals.sort(key=lambda x: abs(x[1]))
+    names, values = zip(*vals)
+    bar_colors = [COLORS["distressed"] if v > 0 else COLORS["stable"] for v in values]
+    tier = distress_df[distress_df["ticker"] == ticker]["risk_tier"].values[0]
+    fig = go.Figure(go.Bar(
+        x=list(values), y=list(names), orientation="h",
+        marker_color=bar_colors,
+        text=[f"{v:+.3f}" for v in values], textposition="outside",
+    ))
+    fig.add_vline(x=0, line_color=COLORS["text_muted"], line_width=1)
+    fig.update_layout(**PLOT_BG,
+                      title=dict(text=f"{ticker}  [{tier}]  — SHAP feature contributions",
+                                 font_size=13, x=0),
+                      xaxis=dict(title="SHAP contribution (positive = pushes toward distress)", **GRID),
+                      yaxis=dict(**GRID),
+                      margin=dict(l=10,r=70,t=44,b=30))
+    return fig
+
+def build_deepdive_figs(ticker="AMC"):
+    row_d = distress_df[distress_df["ticker"] == ticker].iloc[0]
+    row_f = features_df[features_df["ticker"] == ticker].iloc[0]
+    tc    = tier_color(row_d["risk_tier"])
+
+    r_vals = []
+    for f in FEATURES:
+        v = row_f[f]
+        all_v = features_df[f].dropna()
+        if pd.isna(v) or all_v.std() == 0:
+            r_vals.append(0.5)
+        else:
+            r_vals.append(float(np.clip((v - all_v.min()) / (all_v.max() - all_v.min()), 0, 1)))
+
+    lbls = [FEATURE_LABELS.get(f,f) for f in FEATURES]
+    r_c  = r_vals + [r_vals[0]]
+    l_c  = lbls   + [lbls[0]]
+    rr,gg,bb = int(tc[1:3],16), int(tc[3:5],16), int(tc[5:7],16)
+
+    radar_fig = go.Figure(go.Scatterpolar(
+        r=r_c, theta=l_c, fill="toself",
+        fillcolor=f"rgba({rr},{gg},{bb},0.18)",
+        line_color=tc, name=ticker,
+    ))
+    radar_fig.update_layout(**PLOT_BG,
+                             polar=dict(
+                                 bgcolor="rgba(0,0,0,0)",
+                                 radialaxis=dict(visible=True, range=[0,1],
+                                                 gridcolor=COLORS["border"],
+                                                 color=COLORS["text_muted"]),
+                                 angularaxis=dict(gridcolor=COLORS["border"],
+                                                  color=COLORS["text_muted"]),
+                             ),
+                             margin=dict(l=40,r=40,t=20,b=20), showlegend=False)
+
+    models = ["Logistic Reg.","Random Forest","Gradient Boost","Ensemble"]
+    probs  = [row_d["prob_lr"],row_d["prob_rf"],row_d["prob_gb"],row_d["prob_ensemble"]]
+    bc     = [COLORS["distressed"] if p >= 0.5 else COLORS["stable"] for p in probs]
+    prob_fig = go.Figure(go.Bar(
+        x=models, y=probs, marker_color=bc,
+        text=[f"{p:.1%}" for p in probs], textposition="outside",
+    ))
+    prob_fig.add_hline(y=0.5, line_dash="dot", line_color=COLORS["text_muted"],
+                       annotation_text="Decision boundary", annotation_font_size=10)
+    prob_fig.update_layout(**PLOT_BG,
+                            xaxis=dict(**GRID),
+                            yaxis=dict(range=[0,1.18], tickformat=".0%", **GRID),
+                            margin=dict(l=10,r=10,t=20,b=10), showlegend=False)
+    return radar_fig, prob_fig
+
+# Build all initial figures once at startup
+INIT_SCREENER_FIG   = build_screener_fig()
+INIT_CV_FIG         = build_cv_fig()
+INIT_FEAT_IMP_FIG   = build_feat_imp_fig()
+INIT_SHAP_FIG       = build_shap_fig()
+INIT_RADAR, INIT_PROBS = build_deepdive_figs()
+
+# ---------------------------------------------------------------------------
+# App
+# ---------------------------------------------------------------------------
 app = dash.Dash(__name__, title="Corporate Distress EWS")
 server = app.server
 
@@ -182,8 +326,6 @@ app.layout = html.Div(style={
 
     html.Link(rel="stylesheet",
               href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap"),
-
-    dcc.Store(id="page-load-store", data=0),
 
     html.Div(style={
         "backgroundColor":COLORS["panel"],"borderBottom":f"1px solid {COLORS['border']}",
@@ -291,8 +433,8 @@ app.layout = html.Div(style={
                     ],
                     page_size=18, sort_action="native", filter_action="native",
                 ),
-                dcc.Graph(id="screener-bar", figure=go.Figure(), config={"displayModeBar":False},
-                          style={"height":"280px"}),
+                dcc.Graph(id="screener-bar", figure=INIT_SCREENER_FIG,
+                          config={"displayModeBar":False}, style={"height":"280px"}),
             ]),
         ]),
 
@@ -303,7 +445,8 @@ app.layout = html.Div(style={
                         "gap":"20px","marginBottom":"20px"}, children=[
             html.Div(style=card_s(), children=[
                 html.P("Cross-validation scores (AUC, F1, Precision, Recall)", style=card_lbl()),
-                dcc.Graph(id="cv-chart", figure=go.Figure(), config={"displayModeBar":False}, style={"height":"270px"}),
+                dcc.Graph(id="cv-chart", figure=INIT_CV_FIG,
+                          config={"displayModeBar":False}, style={"height":"270px"}),
             ]),
             html.Div(style={"display":"flex","flexDirection":"column","gap":"16px"}, children=[
                 html.Div(style=card_s(), children=[
@@ -339,8 +482,8 @@ app.layout = html.Div(style={
                         "gap":"20px","marginBottom":"20px"}, children=[
             html.Div(style=card_s(), children=[
                 html.P("Random Forest feature importances (Gini impurity)", style=card_lbl()),
-                dcc.Graph(id="feat-imp-chart", figure=go.Figure(), config={"displayModeBar":False},
-                          style={"height":"310px"}),
+                dcc.Graph(id="feat-imp-chart", figure=INIT_FEAT_IMP_FIG,
+                          config={"displayModeBar":False}, style={"height":"310px"}),
             ]),
             html.Div(style=card_s(), children=[
                 html.P("SHAP beeswarm — feature values coloured by distress label", style=card_lbl()),
@@ -361,8 +504,8 @@ app.layout = html.Div(style={
                     style={"width":"160px","fontSize":"13px"},
                 ),
             ]),
-            dcc.Graph(id="shap-waterfall-chart", figure=go.Figure(), config={"displayModeBar":False},
-                      style={"height":"320px"}),
+            dcc.Graph(id="shap-waterfall-chart", figure=INIT_SHAP_FIG,
+                      config={"displayModeBar":False}, style={"height":"320px"}),
         ]),
 
         section_hdr("4","Company deep dive",
@@ -385,13 +528,13 @@ app.layout = html.Div(style={
             html.Div(style={"display":"grid","gridTemplateColumns":"1fr 1fr","gap":"16px"}, children=[
                 html.Div(style=card_s(), children=[
                     html.P("Feature profile (normalised 0-1 across all 18 companies)", style=card_lbl()),
-                    dcc.Graph(id="deepdive-radar", figure=go.Figure(), config={"displayModeBar":False},
-                              style={"height":"290px"}),
+                    dcc.Graph(id="deepdive-radar", figure=INIT_RADAR,
+                              config={"displayModeBar":False}, style={"height":"290px"}),
                 ]),
                 html.Div(style=card_s(), children=[
                     html.P("Distress probability by model", style=card_lbl()),
-                    dcc.Graph(id="deepdive-probs", figure=go.Figure(), config={"displayModeBar":False},
-                              style={"height":"290px"}),
+                    dcc.Graph(id="deepdive-probs", figure=INIT_PROBS,
+                              config={"displayModeBar":False}, style={"height":"290px"}),
                 ]),
             ]),
         ]),
@@ -408,6 +551,10 @@ app.layout = html.Div(style={
 ])
 
 
+# ---------------------------------------------------------------------------
+# Callbacks  (update on interaction only — initial view handled by INIT_ figs)
+# ---------------------------------------------------------------------------
+
 @app.callback(
     Output("screener-table","data"),
     Output("screener-table","columns"),
@@ -416,31 +563,27 @@ app.layout = html.Div(style={
     Input("tier-filter","value"),
     Input("prob-threshold","value"),
     Input("model-select-screener","value"),
-    Input("page-load-store","data"),
-    prevent_initial_call=False,
 )
-def update_screener(tiers, threshold, model_col, _):
+def update_screener(tiers, threshold, model_col):
     filtered = distress_df[
         distress_df["risk_tier"].isin(tiers) &
         (distress_df[model_col] >= threshold)
     ].copy().sort_values(model_col, ascending=False)
 
     if filtered.empty:
-        empty = html.Div(
+        return [], [], go.Figure(), html.Div(
             "No companies match this filter. Try lowering the threshold or adding more tiers.",
             style={"color":COLORS["distressed"],"padding":"20px",
-                   "fontStyle":"italic","fontSize":"13px"},
-        )
-        return [], [], go.Figure(), empty
+                   "fontStyle":"italic","fontSize":"13px"})
 
-    scores_num  = filtered[model_col].tolist()
-    bar_colors  = [tier_color(t) for t in filtered["risk_tier"]]
-    tickers     = filtered["ticker"].tolist()
+    scores_num = filtered[model_col].tolist()
+    bar_colors = [tier_color(t) for t in filtered["risk_tier"]]
+    tickers    = filtered["ticker"].tolist()
 
     display = filtered[["ticker","risk_tier","distress_label",model_col,"prob_ensemble"]].copy()
-    display["distress_label"]  = display["distress_label"].map({1:"Distressed",0:"Stable"})
-    display[model_col]         = display[model_col].apply(lambda x: f"{float(x):.1%}")
-    display["prob_ensemble"]   = display["prob_ensemble"].apply(lambda x: f"{float(x):.1%}")
+    display["distress_label"] = display["distress_label"].map({1:"Distressed",0:"Stable"})
+    display[model_col]        = display[model_col].apply(lambda x: f"{float(x):.1%}")
+    display["prob_ensemble"]  = display["prob_ensemble"].apply(lambda x: f"{float(x):.1%}")
 
     cols = [
         {"name":"Ticker",         "id":"ticker"},
@@ -451,8 +594,7 @@ def update_screener(tiers, threshold, model_col, _):
     ]
 
     fig = go.Figure(go.Bar(
-        x=tickers, y=scores_num,
-        marker_color=bar_colors,
+        x=tickers, y=scores_num, marker_color=bar_colors,
         text=[f"{v:.0%}" for v in scores_num],
         textposition="outside", cliponaxis=False,
     ))
@@ -462,92 +604,18 @@ def update_screener(tiers, threshold, model_col, _):
     fig.add_hline(y=0.6, line_dash="dot", line_color=COLORS["highlight"],
                   annotation_text="High (60%)", annotation_font_size=10,
                   annotation_position="bottom right")
-    fig.update_layout(
-        **PLOT_BG,
-        xaxis=dict(**GRID),
-        yaxis=dict(tickformat=".0%", range=[0,1.18], **GRID),
-        margin=dict(l=10,r=10,t=36,b=10),
-        showlegend=False,
-        title_text="Distress probability by company",
-    )
+    fig.update_layout(**PLOT_BG,
+                      xaxis=dict(**GRID),
+                      yaxis=dict(tickformat=".0%", range=[0,1.18], **GRID),
+                      margin=dict(l=10,r=10,t=36,b=10),
+                      showlegend=False,
+                      title_text="Distress probability by company")
     return display.to_dict("records"), cols, fig, None
 
 
-@app.callback(Output("cv-chart","figure"), Input("tier-filter","value"), Input("page-load-store","data"))
-def update_cv_chart(_, __):
-    metrics    = ["AUC","F1","Precision","Recall"]
-    cols       = ["AUC_mean","F1_mean","Precision_mean","Recall_mean"]
-    bar_colors = ["#378ADD","#E84855","#F4A261","#888888"]
-    width = 0.18
-    x_pos = np.arange(len(cv_df))
-
-    fig = go.Figure()
-    for i, (m, c, color) in enumerate(zip(metrics, cols, bar_colors)):
-        fig.add_trace(go.Bar(
-            name=m, x=[v + (i-1.5)*width for v in x_pos], y=cv_df[c],
-            width=width, marker_color=color,
-            text=[f"{v:.2f}" for v in cv_df[c]], textposition="outside",
-        ))
-
-    fig.update_layout(
-        **PLOT_BG,
-        barmode="group",
-        xaxis=dict(tickvals=list(x_pos), ticktext=cv_df["Model"].tolist(), **GRID),
-        yaxis=dict(range=[0,1.18], **GRID),
-        margin=dict(l=10,r=10,t=36,b=10),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
-                    bgcolor="rgba(0,0,0,0)", font_size=11),
-    )
-    return fig
-
-
-@app.callback(Output("feat-imp-chart","figure"), Input("tier-filter","value"), Input("page-load-store","data"))
-def update_feat_imp(_, __):
-    feats  = sorted(FEATURE_IMPORTANCE.items(), key=lambda x: x[1])
-    labels = [FEATURE_LABELS.get(f,f) for f,_ in feats]
-    values = [v for _,v in feats]
-    colors = [
-        COLORS["distressed"] if v >= 0.15 else
-        COLORS["stable"]     if v >= 0.05 else
-        COLORS["neutral"]
-        for v in values
-    ]
-    fig = go.Figure(go.Bar(
-        x=values, y=labels, orientation="h", marker_color=colors,
-        text=[f"{v:.3f}" for v in values], textposition="outside",
-    ))
-    fig.update_layout(
-        **PLOT_BG,
-        xaxis=dict(range=[0,0.42], **GRID),
-        yaxis=dict(**GRID),
-        margin=dict(l=10,r=60,t=10,b=10),
-    )
-    return fig
-
-
-@app.callback(Output("shap-waterfall-chart","figure"), Input("shap-company-select","value"), Input("page-load-store","data"))
-def update_shap_waterfall(ticker, _):
-    row  = shap_df[shap_df["ticker"] == ticker].iloc[0]
-    vals = [(FEATURE_LABELS.get(f,f), float(row[f])) for f in FEATURES]
-    vals.sort(key=lambda x: abs(x[1]))
-    names, values = zip(*vals)
-    bar_colors = [COLORS["distressed"] if v > 0 else COLORS["stable"] for v in values]
-    tier = distress_df[distress_df["ticker"] == ticker]["risk_tier"].values[0]
-
-    fig = go.Figure(go.Bar(
-        x=list(values), y=list(names), orientation="h",
-        marker_color=bar_colors,
-        text=[f"{v:+.3f}" for v in values], textposition="outside",
-    ))
-    fig.add_vline(x=0, line_color=COLORS["text_muted"], line_width=1)
-    fig.update_layout(
-        **PLOT_BG,
-        title=dict(text=f"{ticker}  [{tier}]  — SHAP feature contributions", font_size=13, x=0),
-        xaxis=dict(title="SHAP contribution (positive = pushes toward distress)", **GRID),
-        yaxis=dict(**GRID),
-        margin=dict(l=10,r=70,t=44,b=30),
-    )
-    return fig
+@app.callback(Output("shap-waterfall-chart","figure"), Input("shap-company-select","value"))
+def update_shap_waterfall(ticker):
+    return build_shap_fig(ticker)
 
 
 @app.callback(
@@ -555,13 +623,9 @@ def update_shap_waterfall(ticker, _):
     Output("deepdive-radar","figure"),
     Output("deepdive-probs","figure"),
     Input("deepdive-company","value"),
-    Input("page-load-store","data"),
-    prevent_initial_call=False,
 )
-def update_deepdive(ticker, _):
-    row_d = distress_df[distress_df["ticker"] == ticker].iloc[0]
-    row_f = features_df[features_df["ticker"] == ticker].iloc[0]
-
+def update_deepdive(ticker):
+    row_d    = distress_df[distress_df["ticker"] == ticker].iloc[0]
     tier     = row_d["risk_tier"]
     tc       = tier_color(tier)
     prob     = row_d["prob_ensemble"]
@@ -582,54 +646,7 @@ def update_deepdive(ticker, _):
         ]),
     ])
 
-    r_vals = []
-    for f in FEATURES:
-        v = row_f[f]
-        all_v = features_df[f].dropna()
-        if pd.isna(v) or all_v.std() == 0:
-            r_vals.append(0.5)
-        else:
-            r_vals.append(float(np.clip((v - all_v.min()) / (all_v.max() - all_v.min()), 0, 1)))
-
-    lbls = [FEATURE_LABELS.get(f,f) for f in FEATURES]
-    r_c  = r_vals + [r_vals[0]]
-    l_c  = lbls   + [lbls[0]]
-    rr,gg,bb = int(tc[1:3],16), int(tc[3:5],16), int(tc[5:7],16)
-
-    radar_fig = go.Figure(go.Scatterpolar(
-        r=r_c, theta=l_c, fill="toself",
-        fillcolor=f"rgba({rr},{gg},{bb},0.18)",
-        line_color=tc, name=ticker,
-    ))
-    radar_fig.update_layout(
-        **PLOT_BG,
-        polar=dict(
-            bgcolor="rgba(0,0,0,0)",
-            radialaxis=dict(visible=True, range=[0,1],
-                            gridcolor=COLORS["border"], color=COLORS["text_muted"]),
-            angularaxis=dict(gridcolor=COLORS["border"], color=COLORS["text_muted"]),
-        ),
-        margin=dict(l=40,r=40,t=20,b=20),
-        showlegend=False,
-    )
-
-    models = ["Logistic Reg.","Random Forest","Gradient Boost","Ensemble"]
-    probs  = [row_d["prob_lr"],row_d["prob_rf"],row_d["prob_gb"],row_d["prob_ensemble"]]
-    bc     = [COLORS["distressed"] if p >= 0.5 else COLORS["stable"] for p in probs]
-
-    prob_fig = go.Figure(go.Bar(
-        x=models, y=probs, marker_color=bc,
-        text=[f"{p:.1%}" for p in probs], textposition="outside",
-    ))
-    prob_fig.add_hline(y=0.5, line_dash="dot", line_color=COLORS["text_muted"],
-                       annotation_text="Decision boundary", annotation_font_size=10)
-    prob_fig.update_layout(
-        **PLOT_BG,
-        xaxis=dict(**GRID),
-        yaxis=dict(range=[0,1.18], tickformat=".0%", **GRID),
-        margin=dict(l=10,r=10,t=20,b=10),
-        showlegend=False,
-    )
+    radar_fig, prob_fig = build_deepdive_figs(ticker)
     return scorecard, radar_fig, prob_fig
 
 
